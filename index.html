@@ -37,6 +37,8 @@
   /* Board */
   #board-wrap{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
   #board{position:relative;touch-action:none}
+  /* grade de sombras (colmeia) sob as células */
+  .slot{position:absolute;border-radius:16%;background:#0a142f8c;box-shadow:inset 0 2px 4px #00000066;z-index:1}
   canvas{position:absolute;pointer-events:none;z-index:6}
   .tile{position:absolute;border-radius:16%;display:flex;align-items:center;justify-content:center;
     background:#f4eeda;
@@ -687,7 +689,7 @@ function buildLevel(){
   while(!hasAnyMove()&&safety++<40)reshuffleTiles();
 
   S.remaining=cells;
-  layoutBoard(); renderTiles();
+  layoutBoard(); renderSlots(); renderTiles();
   showModeBanner(S.mode.name);
   if(S.level>1 && typesForLevel(S.level)>typesForLevel(S.level-1)){
     const nt=TILE_SET[typesForLevel(S.level)-1];
@@ -723,6 +725,20 @@ function cellPx(x,y){
 }
 
 
+// colmeia: um quadrado escuro por célula, deslocado pra baixo (aparece como sombra)
+function renderSlots(){
+  board.querySelectorAll(".slot").forEach(e=>e.remove());
+  const off=Math.max(3,Math.round(S.tileSize*0.09)); // deslocamento da sombra
+  for(let y=1;y<=S.rows;y++)for(let x=1;x<=S.cols;x++){
+    const s=document.createElement("div");
+    s.className="slot";
+    const {px,py}=cellPx(x,y);
+    s.style.width=s.style.height=S.tileSize+"px";
+    s.style.left=(px-S.tileSize/2)+"px";
+    s.style.top=(py-S.tileSize/2+off)+"px";
+    board.appendChild(s);
+  }
+}
 function renderTiles(){
   board.querySelectorAll(".tile").forEach(e=>e.remove());
   S.tileEl=Array.from({length:S.H},()=>Array(S.W).fill(null));
@@ -1585,7 +1601,7 @@ function startTutorial(){
   $("app").style.display="";         // tabuleiro visível...
   $("hud").style.display="none";     // ...mas tutorial = só o tabuleiro
   $("tools").style.display="none";
-  layoutBoard();renderTiles();
+  layoutBoard();renderSlots();renderTiles();
   const pairA=[tc(1,1),tc(2,1)];
   TUT.allowed=new Set(pairA.map(([x,y])=>x+","+y));
   tutBoxes(pairA);
@@ -1690,7 +1706,7 @@ function handleResize(){
     for(let y=1;y<=or;y++)for(let x=1;x<=oc;x++)ng[x][y]=old[y][x];
     S.grid=ng;
   }
-  layoutBoard();renderTiles();
+  layoutBoard();renderSlots();renderTiles();
   S.sel=null;hideSel();
   ctx.clearRect(0,0,cvs.width,cvs.height);
 }
