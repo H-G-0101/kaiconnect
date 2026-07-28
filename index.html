@@ -61,7 +61,7 @@
   @keyframes selPulse{from{transform:scale(.96);opacity:.85}to{transform:scale(1.1);opacity:1}}
 
   /* Buttons */
-  #tools{display:flex;gap:8px}
+  #tools{display:flex;gap:20px;justify-content:center;align-items:center}
   .btn{flex:1;background:var(--panel);border:none;color:var(--txt);border-radius:14px;
     padding:10px 6px;font-weight:700;font-size:14px;display:flex;flex-direction:column;
     align-items:center;gap:2px;cursor:pointer;transition:transform .08s,background .15s}
@@ -86,9 +86,13 @@
   .btn .ico{font-size:27px;line-height:1.1;transition:transform .15s}
   .btn:active .ico{transform:scale(1.2) rotate(-6deg)}
   /* cada booster com identidade de cor: fundo, brilho do emoji e badge */
-  #tools .btn{position:relative;border:1px solid #ffffff1c;overflow:visible;padding:11px 6px 9px}
-  #tools .cnt{position:absolute;top:-7px;right:-3px;font-size:12px;font-weight:900;
-    padding:2px 8px;border-radius:10px;border:2px solid var(--bg2);color:#04212a;opacity:1}
+  #tools .btn{flex:none;width:58px;height:58px;border-radius:50%;padding:0;gap:0;
+    position:relative;overflow:visible;border:1px solid #ffffff1c;
+    display:flex;align-items:center;justify-content:center}
+  #tools .btn .ico{font-size:26px;line-height:1}
+  #tools .cnt{position:absolute;top:-4px;right:-4px;font-size:12px;font-weight:900;
+    min-width:22px;height:22px;padding:0 5px;border-radius:11px;border:2px solid var(--bg2);
+    color:#04212a;opacity:1;display:flex;align-items:center;justify-content:center}
   #btnHint{background:linear-gradient(160deg,#4a3c14e0,#2c240ce0);box-shadow:0 3px 10px #ffd84d22, inset 0 1px 2px #ffd84d33}
   #btnHint .ico{filter:drop-shadow(0 0 7px #ffd84daa)}
   #btnHint .cnt{background:linear-gradient(160deg,#ffe27a,#f0a818)}
@@ -175,8 +179,10 @@
     display:flex;align-items:center;gap:6px;font-weight:800;font-size:15px;
     box-shadow:0 2px 0 #1a2440, inset 0 1px 2px #ffffff22;transition:transform .08s}
   .gem-pill:active{transform:scale(.94)}
-  .gem-pill .plus{background:#4dd0e1;color:#04212a;border-radius:50%;width:18px;height:18px;
-    display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
+  /* badge "+" compartilhado entre a pílula do gameplay e a da home */
+  .gem-pill .plus,.home-pill .plus{background:#a8ec86;color:#0d3d17;border-radius:50%;
+    width:18px;height:18px;display:flex;align-items:center;justify-content:center;
+    font-size:14px;line-height:1;font-weight:900;flex:none}
   #shopGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 4px}
   .pack{position:relative;background:#ffffff10;border:1px solid #ffffff22;border-radius:16px;
     padding:14px 10px 12px;display:flex;flex-direction:column;align-items:center;gap:6px}
@@ -361,7 +367,7 @@
     <span class="logo-txt">KAI CONNECT</span>
     <button class="home-pill" id="hDaily"><span class="home-ico">🎁<span class="home-dot" id="dailyDot"></span></span></button>
     <button class="home-pill" id="hRank">🏆</button>
-    <button class="home-pill" id="hGems"><span>💎</span><span id="homeGems">0</span></button>
+    <button class="home-pill" id="hGems"><span>💎</span><span id="homeGems">0</span><span class="plus">+</span></button>
   </div>
   <div id="homeTrack"><div id="homeTrackInner"></div></div>
   <div id="homeBottom">
