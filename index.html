@@ -1681,30 +1681,34 @@ async function cidiBoot(){
       CIDI.client=CidiProxySDK.createClient({baseURL:"https://elf-proxy.cidi.games/api/v1",apiKey:CIDI.API_KEY});
       await withRetry(()=>CIDI.client.auth.login(),"login");
       CIDI.logged=true;
-      medalReconcile();
+      await medalReconcile();
+      medalCheck(clearedLevel());   // pega claim perdido de vitórias anteriores
     }else dbg("ProxySDK ausente");
   }catch(e){CIDI.logged=false;dbg("login FAIL");}
 }
 // ---- Medal: Reach level 150 (reconciliação contra ownership, padrão 2248) ----
-function medalReconcile(){
-  guard("medalRec",async()=>{
-    if(!CIDI.logged)return;
-    try{
-      const r=await withRetry(()=>CIDI.client.report.medalOwnership(),"medalOwnership");
-      if(r&&r.owned){store.set("onet.medal",true);dbg("medal já possuída (reconciliado)");}
-      else if(store.get("onet.medal",false)){store.set("onet.medal",false);dbg("medal local sem ownership: reset");}
-    }catch(e){}
-  });
+let medalRecBusy=false;
+async function medalReconcile(){
+  if(medalRecBusy||!CIDI.logged)return;
+  medalRecBusy=true;
+  try{
+    const r=await withRetry(()=>CIDI.client.report.medalOwnership(),"medalOwnership");
+    if(r&&r.owned){store.set("onet.medal",true);dbg("medal já possuída (reconciliado)");}
+    else if(store.get("onet.medal",false)){store.set("onet.medal",false);dbg("medal local sem ownership: reset");}
+  }catch(e){}finally{medalRecBusy=false;}
 }
 function medalCheck(level){
-  if(level<CIDI.MEDAL_LEVEL)return;
-  if(store.get("onet.medal",false))return;
+  if(level<CIDI.MEDAL_LEVEL){dbg("medal: lv"+level+" ainda < "+CIDI.MEDAL_LEVEL);return;}
+  if(store.get("onet.medal",false)){dbg("medal: já conquistada");return;}
+  if(!CIDI.logged){dbg("medal: SEM LOGIN — vai tentar de novo no próximo login/vitória");return;}
   guard("medal",async()=>{
-    if(!CIDI.logged)return;
     await withRetry(()=>CIDI.client.report.medal(),"medal claim");
     store.set("onet.medal",true);
+    dbg("🏅 MEDALHA CONQUISTADA (lv"+level+")");
   });
 }
+// maior nível já concluído (onet.level guarda o PRÓXIMO a jogar)
+function clearedLevel(){return Math.max(0,store.get("onet.level",1)-1);}
 // ---- Event/torneio: score = level (reporta só quando supera o último reportado) ----
 function tournamentReport(level){
   const last=store.get("onet.tourLv",0);
