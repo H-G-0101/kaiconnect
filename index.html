@@ -1633,11 +1633,12 @@ const CIDI={
   API_KEY:"CIDI_3995B2D32C38499D", // API key do Kai Connect
   MEDAL_LEVEL:150,                    // medalha: Reach level 150
   client:null, logged:false, initDone:false,
-  DEBUG:/[?&]debug=1/.test(location.search)
+  DEBUG:/[?&]debug=1/.test(location.search), // simula anúncio com sucesso — só com ?debug=1
+  PANEL:true  // 🐞 sempre visível na tela. TROQUE PRA false ANTES DE PUBLICAR
 };
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function dbg(msg){
-  if(!CIDI.DEBUG)return;
+  if(!CIDI.DEBUG&&!CIDI.PANEL)return;
   const l=$("dbgLog");const d=document.createElement("div");
   d.className="dl";d.textContent=new Date().toISOString().substr(11,8)+" "+msg;
   l.appendChild(d);l.scrollTop=l.scrollHeight;
@@ -2265,7 +2266,7 @@ function dbgStatus(){
     "TASK   última data: "+task+"  "+(task===bizToday()?"(hoje ✅)":"(pendente)")+"\n"+
     "MEDAL  "+ok(store.get("onet.medal",false))+"  (destrava no Lv"+CIDI.MEDAL_LEVEL+")";
 }
-if(CIDI.DEBUG){
+if(CIDI.DEBUG||CIDI.PANEL){
   $("dbgFab").classList.add("on");
   $("dbgFab").onclick=()=>{
     const p=$("dbgPanel");p.classList.toggle("on");
