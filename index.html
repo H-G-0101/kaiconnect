@@ -72,6 +72,8 @@
   #board-wrap{flex:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0}
   #board{position:relative;touch-action:none}
   /* grade de sombras (colmeia) sob as células */
+  /* colmeia só no tema escuro — na madeira a textura do fundo já basta */
+  body[data-theme="wood"] .slot{display:none}
   .slot{position:absolute;border-radius:16%;background:var(--slot);
     box-shadow:inset 0 1px 2px #ffffff1f, inset 0 -1px 3px #00000038;z-index:0}
   canvas{position:absolute;pointer-events:none;z-index:6}
@@ -1631,7 +1633,7 @@ function loseGame(reason){
 // ========== CiDi SDK (ordem Hexanova: ensurePiReady -> init -> reload -> login -> reconcile) ==========
 const CIDI={
   API_KEY:"CIDI_3995B2D32C38499D", // API key do Kai Connect
-  MEDAL_LEVEL:150,                    // medalha: Reach level 150
+  MEDAL_LEVEL:3,                      // ⚠️ TESTE — VOLTAR PRA 150 ANTES DE PUBLICAR
   client:null, logged:false, initDone:false,
   DEBUG:/[?&]debug=1/.test(location.search), // simula anúncio com sucesso — só com ?debug=1
   PANEL:true  // 🐞 sempre visível na tela. TROQUE PRA false ANTES DE PUBLICAR
