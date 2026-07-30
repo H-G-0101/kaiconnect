@@ -143,6 +143,10 @@
   #btnHint .ico{filter:drop-shadow(0 0 7px #ffd84daa) drop-shadow(0 2px 3px #000a)}
   #btnShuffle .ico{filter:drop-shadow(0 0 7px #7ed957aa) drop-shadow(0 2px 3px #000a)}
   #btnTime .ico{filter:drop-shadow(0 0 7px #4dd0e1aa) drop-shadow(0 2px 3px #000a)}
+  #btnShuffle.nomoves{animation:noMovesPulse .62s ease-in-out infinite alternate;z-index:4}
+  @keyframes noMovesPulse{
+    from{transform:scale(1);box-shadow:inset 0 2px 5px #0000004d, 0 0 0 0 #7ed95700}
+    to{transform:scale(1.2);box-shadow:inset 0 2px 5px #0000004d, 0 0 0 7px #7ed9575c, 0 5px 18px #7ed957d9}}
   #btnTime.urge{animation:urgePulse .75s ease-in-out infinite alternate}
   @keyframes urgePulse{
     from{box-shadow:inset 0 2px 5px #0000004d, 0 0 0 0 #4dd0e100}
@@ -813,6 +817,7 @@ function beep(freq,dur=0.08,type="sine",vol=0.18,slideTo=null){
     g.gain.setValueAtTime(vol,actx.currentTime);
     g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+dur);
     o.connect(g).connect(actx.destination);o.start();o.stop(actx.currentTime+dur);
+    o.onended=()=>{try{o.disconnect();g.disconnect();}catch(e){}}; // evita acúmulo de nós
   }catch(e){}
 }
 // ruído curto filtrado (dá "corpo" de click físico)
@@ -828,6 +833,7 @@ function noiseBurst(dur=0.05,vol=0.15,freq=2200){
     const f=actx.createBiquadFilter();f.type="bandpass";f.frequency.value=freq;f.Q.value=1.2;
     const g=actx.createGain();g.gain.value=vol;
     src.connect(f).connect(g).connect(actx.destination);src.start();
+    src.onended=()=>{try{src.disconnect();f.disconnect();g.disconnect();}catch(e){}};
   }catch(e){}
 }
 // ---- Áudio externo opcional: solte arquivos em sounds/<nome>.mp3 ----
@@ -1198,12 +1204,26 @@ function matchPair(a,b,path){
     const moved=applyGravity();
     if(moved)sfx.slide();
     setTimeout(()=>{
-      if(!hasAnyMove()){
-        floatBoardMsg("No moves — shuffling!");
-        setTimeout(autoReshuffle,400);
-      }
+      if(!hasAnyMove())handleDeadlock();
     },moved?300:0);
   },220);
+}
+
+// sem jogadas: 1ª vez na fase embaralha de graça; depois só com o booster
+function handleDeadlock(){
+  if(boosterLocked("shuffle")||!S.freeShuffle){
+    S.freeShuffle=true;
+    floatBoardMsg("No moves — shuffling!");
+    setTimeout(autoReshuffle,400);
+  }else{
+    setNoMoves(true);
+    floatBoardMsg("No moves! Use 🔀");
+    sfx.bad();
+  }
+}
+function setNoMoves(on){
+  S.noMoves=on;
+  $("btnShuffle").classList.toggle("nomoves",on);
 }
 
 // ---------- Gravidade por nível ----------
@@ -1302,10 +1322,11 @@ function pathSegments(pts){
     segs.push({mx:(corners[i].px+corners[i+1].px)/2,my:(corners[i].py+corners[i+1].py)/2});
   return segs;
 }
+const PART_MAX=180; // teto de segurança pra não estourar em rajada
 function burstAt(x,y){
   const {px,py}=cellPx(x,y);
   const n=14;
-  for(let i=0;i<n;i++){
+  for(let i=0;i<n&&particles.length<PART_MAX;i++){
     const ang=Math.random()*Math.PI*2,sp=60+Math.random()*160;
     particles.push({
       x:px,y:py,vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp-40,
@@ -1453,15 +1474,25 @@ function reshuffleTiles(){
   shuffleArr(vals);
   occ.forEach(([x,y],i)=>S.grid[y][x]=vals[i]);
 }
+// último recurso: coloca os pares lado a lado (garante jogada)
+function forceSolvable(){
+  const occ=[],vals=[];
+  for(let y=1;y<=S.rows;y++)for(let x=1;x<=S.cols;x++)
+    if(S.grid[y][x]){occ.push([x,y]);vals.push(S.grid[y][x]);}
+  vals.sort((a,b)=>a-b); // iguais ficam vizinhos na varredura
+  occ.forEach(([x,y],i)=>S.grid[y][x]=vals[i]);
+}
 function autoReshuffle(){
   let tries=0;
   do{reshuffleTiles();}while(!hasAnyMove()&&tries++<50);
+  if(!hasAnyMove()){forceSolvable();dbg("reshuffle: fallback determinístico");}
   renderTiles();S.sel=null;hideSel();
 }
 function useShuffle(){
   if(TUT.active||boosterLocked("shuffle"))return;
   if(S.shuffles<=0||!S.running||S.paused)return;
   S.shuffles--;updateHUD();sfx.shuffle();clearHints();autoReshuffle();
+  setNoMoves(!hasAnyMove());
 }
 
 // ---------- Booster de tempo (+30s) ----------
@@ -1633,10 +1664,10 @@ function loseGame(reason){
 // ========== CiDi SDK (ordem Hexanova: ensurePiReady -> init -> reload -> login -> reconcile) ==========
 const CIDI={
   API_KEY:"CIDI_3995B2D32C38499D", // API key do Kai Connect
-  MEDAL_LEVEL:3,                      // ⚠️ TESTE — VOLTAR PRA 150 ANTES DE PUBLICAR
+  MEDAL_LEVEL:150,                    // medalha: Reach level 150
   client:null, logged:false, initDone:false,
   DEBUG:/[?&]debug=1/.test(location.search), // simula anúncio com sucesso — só com ?debug=1
-  PANEL:true  // 🐞 sempre visível na tela. TROQUE PRA false ANTES DE PUBLICAR
+  PANEL:false // 🐞 na tela. true = sempre visível; false = só com ?debug=1
 };
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function dbg(msg){
@@ -1682,7 +1713,7 @@ async function cidiBoot(){
       await withRetry(()=>CIDI.client.auth.login(),"login");
       CIDI.logged=true;
       await medalReconcile();
-      medalCheck(clearedLevel());   // pega claim perdido de vitórias anteriores
+      medalCheck(reachedLevel());   // pega claim perdido de sessões anteriores
     }else dbg("ProxySDK ausente");
   }catch(e){CIDI.logged=false;dbg("login FAIL");}
 }
@@ -1707,8 +1738,8 @@ function medalCheck(level){
     dbg("🏅 MEDALHA CONQUISTADA (lv"+level+")");
   });
 }
-// maior nível já concluído (onet.level guarda o PRÓXIMO a jogar)
-function clearedLevel(){return Math.max(0,store.get("onet.level",1)-1);}
+// nível ALCANÇADO = o que está disponível pra jogar (onet.level guarda exatamente isso)
+function reachedLevel(){return Math.max(1,store.get("onet.level",1));}
 // ---- Event/torneio: score = level (reporta só quando supera o último reportado) ----
 function tournamentReport(level){
   const last=store.get("onet.tourLv",0);
@@ -1723,7 +1754,14 @@ function tournamentReport(level){
   });
 }
 // ---- Task diária: "Clear any 1 level" (1x por dia) ----
-function bizToday(){const d=new Date();return ""+d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");}
+function bizToday(){
+  const d=new Date();
+  const k=""+d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+  const max=store.get("onet.maxDay","");
+  if(k<max)return max;                  // relógio voltou no tempo: ignora
+  if(k>max)store.set("onet.maxDay",k);
+  return k;
+}
 function taskReport(level){
   if(store.get("onet.taskDate","")===bizToday())return;
   guard("task",async()=>{
@@ -1738,7 +1776,7 @@ function taskReport(level){
 function cidiOnLevelComplete(level){
   tournamentReport(level);
   taskReport(level);
-  medalCheck(level);
+  medalCheck(level+1); // concluir a fase N = alcançar a N+1
 }
 cidiBoot();
 initMusic();
@@ -2051,8 +2089,10 @@ function tutFinish(){
 // ---------- Fluxo ----------
 function startLevel(){
   $("hud").style.display="";$("tools").style.display="";$("app").style.display="";
+  medalCheck(S.level); // já está jogando a fase = alcançou ela
   S.combo=0;S.maxCombo=0;S.sel=null;S.paused=false;S.running=true;
   S.hints=HINTS_INIT;S.shuffles=SHUFFLES_INIT;S.timeBoosts=TIME_BOOSTS_INIT;
+  S.freeShuffle=false;setNoMoves(false);
   particles=[];pathFX=null;
   buildLevel();updateHUD();updateTimebar();startTimer();hideAll();
 }
@@ -2309,7 +2349,7 @@ if(CIDI.DEBUG||CIDI.PANEL){
   mk("Lv149",()=>{S.level=149;store.set("onet.level",149);startLevel();});
   mk("+1000💎",()=>addGems(1000));
   mk("Daily+",()=>{store.set("onet.dailyLast","");if(!$("home").classList.contains("hidden"))renderHome();dbg("daily liberado");});
-  mk("ResetSave",()=>{["onet.gems","onet.level","onet.tut","onet.medal","onet.tourLv","onet.taskDate","onet.dailyLast","onet.dailyIdx","onet.streak"].forEach(k=>store.set(k,null));dbg("save limpo");});
+  mk("ResetSave",()=>{["onet.gems","onet.level","onet.tut","onet.medal","onet.tourLv","onet.taskDate","onet.dailyLast","onet.dailyIdx","onet.streak","onet.maxDay"].forEach(k=>store.set(k,null));dbg("save limpo");});
   dbg("debug ON");
   dbgStatus();
   setInterval(()=>{if($("dbgPanel").classList.contains("on"))dbgStatus();},1500);
