@@ -145,6 +145,10 @@
   @keyframes urgePulse{
     from{box-shadow:inset 0 2px 5px #0000004d, 0 0 0 0 #4dd0e100}
     to{box-shadow:inset 0 2px 5px #0000004d, 0 0 0 5px #4dd0e155, 0 3px 14px #4dd0e1aa}}
+  #tools .btn.locked .ico{filter:grayscale(1) brightness(.55) drop-shadow(0 2px 3px #000a)}
+  #tools .btn.locked .cnt{font-size:13px;letter-spacing:.2px;opacity:.9}
+  #tools .btn.locked::after{content:"🔒";position:absolute;left:-4px;bottom:-5px;
+    font-size:15px;line-height:1;z-index:3;text-shadow:0 1px 3px #000c}
   #tools .btn.zero{opacity:1}
   #tools .btn.zero .ico{filter:grayscale(.65) brightness(.85) drop-shadow(0 2px 3px #000a)}
   #tools .btn.zero .cnt{color:#ff6b6b}
@@ -368,6 +372,12 @@
     border-radius:10px;padding:8px;font-size:11px;max-width:280px;max-height:40vh;overflow:auto;
     font-family:monospace;display:none}
   #dbgPanel.on{display:block}
+  #dbgFab{position:fixed;right:8px;bottom:8px;z-index:81;display:none;
+    width:44px;height:44px;border-radius:50%;border:2px solid #4dd0e1;cursor:pointer;
+    background:#0b1220e6;color:#fff;font-size:20px;box-shadow:0 3px 10px #000a}
+  #dbgFab.on{display:flex;align-items:center;justify-content:center}
+  #dbgStat{border-bottom:1px solid #4dd0e14d;padding-bottom:5px;margin-bottom:5px;
+    color:#9fe8f2;white-space:pre-line;line-height:1.5}
   #dbgPanel .dl{opacity:.85;margin:1px 0}
   #dbgPanel button{margin:3px 3px 0 0;font-size:11px;padding:3px 7px;border:none;border-radius:6px;
     background:#4dd0e1;color:#04212a;font-weight:700;cursor:pointer}
@@ -706,7 +716,8 @@
 
 <div id="adLoading" class="hidden">📺 Loading ad…</div>
 
-<div id="dbgPanel"><div id="dbgLog"></div><div id="dbgBtns"></div></div>
+<button id="dbgFab" aria-label="Debug">🐞</button>
+<div id="dbgPanel"><div id="dbgStat"></div><div id="dbgLog"></div><div id="dbgBtns"></div></div>
 <div id="combo"></div>
 
 <script>
@@ -748,6 +759,9 @@ const TIMER_MIN     = 120;
 const HINTS_INIT    = 5;
 const SHUFFLES_INIT = 2;
 const TIME_BOOSTS_INIT = 2;
+// boosters travados até a fase indicada
+const BOOSTER_UNLOCK = {hint:3, shuffle:5, time:8};
+function boosterLocked(id){return S.level<BOOSTER_UNLOCK[id];}
 const TIME_BOOST_SECS  = 30;
 function levelTime(lvl){ return Math.max(TIMER_MIN, TIMER_INIT - (lvl-1)*TIMER_FACTOR); }
 
@@ -929,6 +943,12 @@ function buildLevel(){
   S.remaining=cells;
   layoutBoard(); renderSlots(); renderTiles();
   showModeBanner(S.mode.name);
+  for(const id in BOOSTER_UNLOCK){
+    if(BOOSTER_UNLOCK[id]===S.level){
+      const ic={hint:"💡",shuffle:"🔀",time:"⏱️"}[id];
+      setTimeout(()=>{floatBoardMsg("🔓 "+ic+" unlocked!");sfx.hint();},1200);
+    }
+  }
   if(S.level>1 && typesForLevel(S.level)>typesForLevel(S.level-1)){
     const nt=TILE_SET[typesForLevel(S.level)-1];
     setTimeout(()=>{floatBoardMsg("✨ New block unlocked: "+nt);sfx.hint();},2400);
@@ -1408,7 +1428,7 @@ function makeRayBox(x,y){
   return b;
 }
 function useHint(){
-  if(TUT.active)return;
+  if(TUT.active||boosterLocked("hint"))return;
   if(S.hints<=0||!S.running||S.paused)return;
   const pair=findFirstPair();if(!pair)return;
   S.hints--;updateHUD();sfx.hint();clearHints();
@@ -1437,14 +1457,14 @@ function autoReshuffle(){
   renderTiles();S.sel=null;hideSel();
 }
 function useShuffle(){
-  if(TUT.active)return;
+  if(TUT.active||boosterLocked("shuffle"))return;
   if(S.shuffles<=0||!S.running||S.paused)return;
   S.shuffles--;updateHUD();sfx.shuffle();clearHints();autoReshuffle();
 }
 
 // ---------- Booster de tempo (+30s) ----------
 function useTimeBoost(){
-  if(TUT.active)return;
+  if(TUT.active||boosterLocked("time"))return;
   if(S.timeBoosts<=0||!S.running||S.paused)return;
   S.timeBoosts--;updateHUD();sfx.clock();
   S.time+=TIME_BOOST_SECS; // sem teto: o booster sempre entrega os 30s cheios
@@ -1477,7 +1497,7 @@ function updateTimebar(){
   $("timeTxt").textContent=Math.ceil(S.time);
   const low=S.running&&S.time<=15;
   $("timeChip").classList.toggle("low",low);
-  $("btnTime").classList.toggle("urge",low);
+  $("btnTime").classList.toggle("urge",low&&!boosterLocked("time"));
   const arc=$("timeArc");
   if(arc){
     const p=S.timeMax?Math.max(0,Math.min(1,S.time/S.timeMax)):1;
@@ -1491,12 +1511,14 @@ function updateHUD(){
   $("lvl").textContent=S.level;
   $("gems").textContent=S.gems;
   const hg=$("homeGems");if(hg)hg.textContent=S.gems;
-  $("hintCnt").textContent=S.hints;
-  $("shufCnt").textContent=S.shuffles;
-  $("timeCnt").textContent=S.timeBoosts;
-  $("btnHint").classList.toggle("zero",S.hints<=0);
-  $("btnShuffle").classList.toggle("zero",S.shuffles<=0);
-  $("btnTime").classList.toggle("zero",S.timeBoosts<=0);
+  [["hint","btnHint","hintCnt",S.hints],
+   ["shuffle","btnShuffle","shufCnt",S.shuffles],
+   ["time","btnTime","timeCnt",S.timeBoosts]].forEach(([id,bt,ct,val])=>{
+    const locked=boosterLocked(id);
+    $(bt).classList.toggle("locked",locked);
+    $(bt).classList.toggle("zero",!locked&&val<=0);
+    $(ct).textContent=locked?("Lv "+BOOSTER_UNLOCK[id]):val;
+  });
 }
 
 // ---------- Textos ----------
@@ -2174,10 +2196,14 @@ $("pauseHome").onclick=()=>{S.paused=false;goHome();};
 $("pauseClose").onclick=()=>{S.paused=false;hide("ovPause");}; // fechar = continuar
 $("resumeBtn").onclick=()=>{S.paused=false;hide("ovPause");};
 $("restartBtn").onclick=()=>{S.paused=false;startLevel();};
-$("btnHint").onclick=()=>{S.hints<=0?openBooster("hint"):useHint();};
-$("btnShuffle").onclick=()=>{S.shuffles<=0?openBooster("shuffle"):useShuffle();};
+function boosterTap(id,fn){
+  if(boosterLocked(id)){floatBoardMsg("🔒 Unlocks at level "+BOOSTER_UNLOCK[id]);return;}
+  fn();
+}
+$("btnHint").onclick=()=>boosterTap("hint",()=>{S.hints<=0?openBooster("hint"):useHint();});
+$("btnShuffle").onclick=()=>boosterTap("shuffle",()=>{S.shuffles<=0?openBooster("shuffle"):useShuffle();});
 $("btnPause").onclick=togglePause;
-$("btnTime").onclick=()=>{S.timeBoosts<=0?openBooster("time"):useTimeBoost();};
+$("btnTime").onclick=()=>boosterTap("time",()=>{S.timeBoosts<=0?openBooster("time"):useTimeBoost();});
 $("btnMusic").onclick=toggleMusic;
 $("boosterClose").onclick=closeBooster;
 $("bBuy").onclick=buyBooster;
@@ -2228,18 +2254,48 @@ $("setHow").onclick=()=>{
 updateSoundUI();updateVibeUI();
 
 // Debug panel (?debug=1) — padrão Hexanova
+function dbgStatus(){
+  const ok=v=>v?"✅":"❌";
+  const task=store.get("onet.taskDate","-");
+  $("dbgStat").textContent=
+    "SDK "+ok(typeof CiDiSDK!=="undefined")+"  init "+ok(CIDI.initDone)+
+    "  proxy "+ok(typeof CidiProxySDK!=="undefined")+"  login "+ok(CIDI.logged)+"\n"+
+    "key "+(CIDI.API_KEY||"").slice(0,10)+"…\n"+
+    "EVENT  último nível enviado: "+store.get("onet.tourLv",0)+"  (atual "+S.level+")\n"+
+    "TASK   última data: "+task+"  "+(task===bizToday()?"(hoje ✅)":"(pendente)")+"\n"+
+    "MEDAL  "+ok(store.get("onet.medal",false))+"  (destrava no Lv"+CIDI.MEDAL_LEVEL+")";
+}
 if(CIDI.DEBUG){
-  $("dbgPanel").classList.add("on");
+  $("dbgFab").classList.add("on");
+  $("dbgFab").onclick=()=>{
+    const p=$("dbgPanel");p.classList.toggle("on");
+    if(p.classList.contains("on"))dbgStatus();
+  };
   const B=$("dbgBtns");
-  const mk=(t,fn)=>{const b=document.createElement("button");b.textContent=t;b.onclick=fn;B.appendChild(b);};
-  mk("+1000💎",()=>addGems(1000));
+  const mk=(t,fn)=>{const b=document.createElement("button");b.textContent=t;
+    b.onclick=()=>{fn();dbgStatus();};B.appendChild(b);};
+  // forçar cada report ignorando as travas anti-duplicata
+  mk("▶EVENT",()=>{store.set("onet.tourLv",0);tournamentReport(S.level);dbg("forçando event lv"+S.level);});
+  mk("▶TASK",()=>{store.set("onet.taskDate","");taskReport(S.level);dbg("forçando task");});
+  mk("▶MEDAL",()=>{
+    store.set("onet.medal",false);
+    dbg("forçando medal claim");
+    guard("medal",async()=>{
+      if(!CIDI.logged){dbg("medal: sem login");return;}
+      await withRetry(()=>CIDI.client.report.medal(),"medal claim");
+      store.set("onet.medal",true);dbgStatus();
+    });
+  });
+  mk("Ownership",()=>{medalReconcile();dbg("consultando ownership");});
   mk("Win",()=>{if(S.running)winLevel();});
   mk("Lv+10",()=>{S.level+=10;store.set("onet.level",S.level);startLevel();});
   mk("Lv149",()=>{S.level=149;store.set("onet.level",149);startLevel();});
-  mk("Daily+",()=>{store.set("onet.dailyLast","");dbg("daily liberado");if(!$("home").classList.contains("hidden"))renderHome();});
-  mk("Status",()=>dbg("init="+CIDI.initDone+" login="+CIDI.logged+" medal="+store.get("onet.medal",false)+" tourLv="+store.get("onet.tourLv",0)+" task="+store.get("onet.taskDate","-")));
+  mk("+1000💎",()=>addGems(1000));
+  mk("Daily+",()=>{store.set("onet.dailyLast","");if(!$("home").classList.contains("hidden"))renderHome();dbg("daily liberado");});
   mk("ResetSave",()=>{["onet.gems","onet.level","onet.tut","onet.medal","onet.tourLv","onet.taskDate","onet.dailyLast","onet.dailyIdx","onet.streak"].forEach(k=>store.set(k,null));dbg("save limpo");});
   dbg("debug ON");
+  dbgStatus();
+  setInterval(()=>{if($("dbgPanel").classList.contains("on"))dbgStatus();},1500);
 }
 
 let rsT=null;
