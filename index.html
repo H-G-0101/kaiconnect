@@ -1782,12 +1782,18 @@ function showRewardedAd(onSuccess){
     else shopFloat("Ad unavailable 😕");
   };
   if(typeof CiDiSDK!=="undefined"&&CiDiSDK.showRewardedAd){
+    dbg("ad: chamando CiDiSDK.showRewardedAd()");
     CiDiSDK.showRewardedAd()
-      .then(r=>finish(!!(r&&r.success===true))) // só success===true recompensa
-      .catch(e=>{dbg("ad fail "+(e&&(e.error||e.message)));finish(false);});
+      .then(r=>{
+        try{dbg("ad retorno: "+JSON.stringify(r));}catch(e){dbg("ad retorno (não serializável)");}
+        finish(!!(r&&r.success===true)); // só success===true recompensa
+      })
+      .catch(e=>{dbg("ad ERRO: "+(e&&(e.error||e.message||e)));finish(false);});
   }else if(CIDI.DEBUG){
-    setTimeout(()=>finish(true),800); // debug: simula sucesso
+    dbg("ad SIMULADO (sem SDK, ?debug=1) → sucesso falso");
+    setTimeout(()=>finish(true),800);
   }else{
+    dbg("ad indisponível: SDK ausente → fail-closed (sem recompensa)");
     setTimeout(()=>finish(false),500); // produção sem SDK: fail-closed
   }
 }
@@ -2286,6 +2292,10 @@ if(CIDI.DEBUG||CIDI.PANEL){
       await withRetry(()=>CIDI.client.report.medal(),"medal claim");
       store.set("onet.medal",true);dbgStatus();
     });
+  });
+  mk("▶AD",()=>{
+    dbg("--- teste de rewarded ---");
+    showRewardedAd(()=>dbg("ad SUCESSO → recompensa seria entregue"));
   });
   mk("Ownership",()=>{medalReconcile();dbg("consultando ownership");});
   mk("Win",()=>{if(S.running)winLevel();});
