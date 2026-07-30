@@ -762,12 +762,35 @@ const TYPES_COUNT   = 20;
 const TIMER_INIT    = 300;
 const TIMER_FACTOR  = 30;
 const TIMER_MIN     = 120;
-const HINTS_INIT    = 5;
-const SHUFFLES_INIT = 2;
-const TIME_BOOSTS_INIT = 2;
+const BOOSTER_GRANT = 2; // usos grátis concedidos UMA VEZ, na fase em que destrava
 // boosters travados até a fase indicada
 const BOOSTER_UNLOCK = {hint:3, shuffle:5, time:8};
 function boosterLocked(id){return S.level<BOOSTER_UNLOCK[id];}
+// o saldo é do jogador, não da fase: persiste entre fases e sessões
+const BKEY={hint:"onet.bHint",shuffle:"onet.bShuf",time:"onet.bTime"};
+const GKEY={hint:"onet.gHint",shuffle:"onet.gShuf",time:"onet.gTime"};
+function loadBoosters(){
+  S.hints=store.get(BKEY.hint,0);
+  S.shuffles=store.get(BKEY.shuffle,0);
+  S.timeBoosts=store.get(BKEY.time,0);
+}
+function saveBoosters(){
+  store.set(BKEY.hint,S.hints);
+  store.set(BKEY.shuffle,S.shuffles);
+  store.set(BKEY.time,S.timeBoosts);
+}
+// concede os grátis na fase em que cada booster destrava (uma única vez)
+function grantUnlocked(){
+  const add={hint:()=>S.hints+=BOOSTER_GRANT,
+             shuffle:()=>S.shuffles+=BOOSTER_GRANT,
+             time:()=>S.timeBoosts+=BOOSTER_GRANT};
+  for(const id in BOOSTER_UNLOCK){
+    if(!boosterLocked(id)&&!store.get(GKEY[id],false)){
+      add[id]();store.set(GKEY[id],true);
+    }
+  }
+  saveBoosters();
+}
 const TIME_BOOST_SECS  = 30;
 function levelTime(lvl){ return Math.max(TIMER_MIN, TIMER_INIT - (lvl-1)*TIMER_FACTOR); }
 
@@ -791,7 +814,7 @@ let S = {
   sel:null,
   tileSize:44, tileW:44, tileH:53, gap:5,
   time:0, timeMax:0, timer:null,
-  hints:HINTS_INIT, shuffles:SHUFFLES_INIT, timeBoosts:TIME_BOOSTS_INIT,
+  hints:0, shuffles:0, timeBoosts:0,
   sound:true, paused:false, running:false,
   remaining:0, portrait:false, mode:MODES[0]
 };
@@ -1454,7 +1477,7 @@ function useHint(){
   if(TUT.active||boosterLocked("hint"))return;
   if(S.hints<=0||!S.running||S.paused)return;
   const pair=findFirstPair();if(!pair)return;
-  S.hints--;updateHUD();sfx.hint();clearHints();
+  S.hints--;saveBoosters();updateHUD();sfx.hint();clearHints();
   hintBoxes=pair.map(([x,y])=>makeRayBox(x,y));
   hintTimer=setTimeout(clearHints,2500);
 }
@@ -1491,7 +1514,7 @@ function autoReshuffle(){
 function useShuffle(){
   if(TUT.active||boosterLocked("shuffle"))return;
   if(S.shuffles<=0||!S.running||S.paused)return;
-  S.shuffles--;updateHUD();sfx.shuffle();clearHints();autoReshuffle();
+  S.shuffles--;saveBoosters();updateHUD();sfx.shuffle();clearHints();autoReshuffle();
   setNoMoves(!hasAnyMove());
 }
 
@@ -1499,7 +1522,7 @@ function useShuffle(){
 function useTimeBoost(){
   if(TUT.active||boosterLocked("time"))return;
   if(S.timeBoosts<=0||!S.running||S.paused)return;
-  S.timeBoosts--;updateHUD();sfx.clock();
+  S.timeBoosts--;saveBoosters();updateHUD();sfx.clock();
   S.time+=TIME_BOOST_SECS; // sem teto: o booster sempre entrega os 30s cheios
   S._lastTick=null;
   updateTimebar();
@@ -1980,7 +2003,7 @@ function buyBooster(){
   if(S.gems<total)return;
   addGems(-total);
   for(let i=0;i<bQty;i++)b.grant();
-  updateHUD();
+  saveBoosters();updateHUD();
   sfx.match();
   shopFloat("+"+bQty+" "+b.icon);
   closeBooster();
@@ -2091,7 +2114,7 @@ function startLevel(){
   $("hud").style.display="";$("tools").style.display="";$("app").style.display="";
   medalCheck(S.level); // já está jogando a fase = alcançou ela
   S.combo=0;S.maxCombo=0;S.sel=null;S.paused=false;S.running=true;
-  S.hints=HINTS_INIT;S.shuffles=SHUFFLES_INIT;S.timeBoosts=TIME_BOOSTS_INIT;
+  loadBoosters();grantUnlocked();
   S.freeShuffle=false;setNoMoves(false);
   particles=[];pathFX=null;
   buildLevel();updateHUD();updateTimebar();startTimer();hideAll();
@@ -2349,7 +2372,8 @@ if(CIDI.DEBUG||CIDI.PANEL){
   mk("Lv149",()=>{S.level=149;store.set("onet.level",149);startLevel();});
   mk("+1000💎",()=>addGems(1000));
   mk("Daily+",()=>{store.set("onet.dailyLast","");if(!$("home").classList.contains("hidden"))renderHome();dbg("daily liberado");});
-  mk("ResetSave",()=>{["onet.gems","onet.level","onet.tut","onet.medal","onet.tourLv","onet.taskDate","onet.dailyLast","onet.dailyIdx","onet.streak","onet.maxDay"].forEach(k=>store.set(k,null));dbg("save limpo");});
+  mk("ResetSave",()=>{["onet.gems","onet.level","onet.tut","onet.medal","onet.tourLv","onet.taskDate","onet.dailyLast","onet.dailyIdx","onet.streak","onet.maxDay",
+   "onet.bHint","onet.bShuf","onet.bTime","onet.gHint","onet.gShuf","onet.gTime"].forEach(k=>store.set(k,null));dbg("save limpo");});
   dbg("debug ON");
   dbgStatus();
   setInterval(()=>{if($("dbgPanel").classList.contains("on"))dbgStatus();},1500);
